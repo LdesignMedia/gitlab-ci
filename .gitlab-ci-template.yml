@@ -1,0 +1,53 @@
+# Gitlab CI/CD template for Moodle plugins.
+services:
+  - mysql:latest
+  #- mysql:5.7.26 # MySQL is disabled for now.
+  - name: selenium/standalone-chrome:3
+    alias: selenium-standalone-chrome
+variables:
+  PHP_VERSION: "8.0"
+  TRAVIS_BUILD_DIR: "$CI_PROJECT_DIR"
+  MOODLE_REPO: "$MOODLE_WORKPLACE_REPO"
+  MOODLE_REPO_LMS: "https://github.com/moodle/moodle.git"
+  # Moodle branches.
+  MOODLE_BRANCH_WORKPLACE403S: WORKPLACE_403
+  MOODLE_BRANCH_WORKPLACE402S: WORKPLACE_402
+  MOODLE_BRANCH_WORKPLACE401S: WORKPLACE_401_0
+  MOODLE_BRANCH_LMS39: MOODLE_39_STABLE
+  MOODLE_BRANCH_LMS401: MOODLE_401_STABLE
+  MOODLE_BEHAT_WDHOST: "http://selenium-standalone-chrome:4444/wd/hub"
+  MOODLE_START_BEHAT_SERVERS: "NO"
+  # Database.
+  DB: "mysqli"  # MySQL is disabled for now.
+  MYSQL_ROOT_PASSWORD: "superrootpass" # MySQL is disabled for now.
+  MYSQL_ALLOW_EMPTY_PASSWORD: "true" # MySQL is disabled for now.
+
+.scriptshorttest: &scriptshorttest
+  image: moodlehq/moodle-workplace-plugin-ci:$PHP_VERSION
+  tags:
+    - deploy01.avetica.net
+  script:
+    # Update packages and/or install.
+    # - apt update && apt install -y mariadb-client
+    - cd $CI_PROJECT_DIR/..
+    - echo $MOODLE_REPO
+    # - rm -rf moodle
+    # Install Moodle includes the setup of PHPUnit and Behat when tests exist in the plugin directory.
+    # - export IPADDRESS=`grep "${HOSTNAME}$" /etc/hosts |awk '{print $1}'`
+    # - export MOODLE_BEHAT_WWWROOT="http://${IPADDRESS}:8000"
+    # - moodle-plugin-ci install --db-user=root --db-pass=superrootpass --db-host=mysql -vvv
+    # - cd moodle
+    # - php -S ${IPADDRESS}:8000 -t $CI_PROJECT_DIR/../moodle > /dev/null 2>&1 &
+    # - moodle-plugin-ci phplint
+    # - moodle-plugin-ci phpcpd
+    # - moodle-plugin-ci phpmd
+    # - moodle-plugin-ci codechecker
+    # - moodle-plugin-ci mustache || true
+    # - moodle-plugin-ci validate
+    # - moodle-plugin-ci savepoints
+    # - moodle-plugin-ci grunt || true
+    # - moodle-plugin-ci phpdoc
+    # - moodle-plugin-ci phpunit
+    # - moodle-plugin-ci behat --suite default --profile chrome
+  except:
+    - tags
