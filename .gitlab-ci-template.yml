@@ -24,8 +24,6 @@ variables:
 
 .scriptshorttest: &scriptshorttest
   image: moodlehq/moodle-workplace-plugin-ci:$PHP_VERSION
-  tags:
-    - deploy01.avetica.net
   script:
     # Update packages and/or install.
     # - apt update && apt install -y mariadb-client
