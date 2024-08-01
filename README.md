@@ -2,7 +2,7 @@
 
 ## Description
 
-TODO - Add more details about the template.
+Default template for our GitLab CI tests.
 
 ## Usage
 
