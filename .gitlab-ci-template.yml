@@ -9,8 +9,7 @@ services:
 variables:
   PHP_VERSION: "8.0"
   TRAVIS_BUILD_DIR: "$CI_PROJECT_DIR"
-  MOODLE_REPO: "$MOODLE_WORKPLACE_REPO"
-  MOODLE_REPO_LMS: "https://github.com/moodle/moodle.git"
+  MOODLE_REPO: "https://github.com/moodle/moodle.git"
   # Moodle branches.
   # Workplace.
   MOODLE_BRANCH_WORKPLACE404S: WORKPLACE_404_3
