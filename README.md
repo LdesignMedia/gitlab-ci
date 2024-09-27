@@ -8,6 +8,8 @@ Default template for our GitLab CI tests.
 
 The usage can be found in the internal Ldesign Media docs.
 
+Please see https://github.com/LdesignMedia/gitlabworkflow and https://wiki.webv.nl/WiKi/Moodle/2023+-+GitHub+-+CI+testing+-+Moodle
+
 ---
 
 ##### Author
