@@ -46,7 +46,7 @@ variables:
     - cd moodle
     - php -S ${IPADDRESS}:8000 -t $CI_PROJECT_DIR/../moodle > /dev/null 2>&1 &
     - moodle-plugin-ci phplint
-    - moodle-plugin-ci phpcpd
+    - if [ "$ALLOW_ERRORS_PHPCPD" = "true" ]; then moodle-plugin-ci phpcpd || true && echo '-- PHPCPD ERRORS SKIPPED'; else moodle-plugin-ci phpcpd; fi
     - moodle-plugin-ci phpmd
     - moodle-plugin-ci codechecker
     - moodle-plugin-ci mustache || true
