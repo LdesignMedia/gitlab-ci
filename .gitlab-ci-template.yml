@@ -47,15 +47,15 @@ variables:
     - php -S ${IPADDRESS}:8000 -t $CI_PROJECT_DIR/../moodle > /dev/null 2>&1 &
     - |
       run_with_error_handling() {
-        local command=\$1
-        local allow_errors_var=\$2
-        local allow_errors_value=\${!allow_errors_var}
+        local command="$1"              # Use double quotes to capture the command correctly
+        local allow_errors_var="$2"
+        local allow_errors_value="${!allow_errors_var}"  # Correctly dereference the variable
 
-        if [ "\$allow_errors_value" = "true" ]; then
-          \$command || true
-          echo "-- \${command^^} ERRORS SKIPPED"
+        if [ "$allow_errors_value" = "true" ]; then
+          eval "$command" || true       # Use eval to execute the command
+          echo "-- ${command^^} ERRORS SKIPPED"
         else
-          \$command
+          eval "$command"               # Use eval to execute the command
         fi
       }
 
