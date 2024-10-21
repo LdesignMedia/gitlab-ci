@@ -45,16 +45,32 @@ variables:
     - moodle-plugin-ci install --db-user=root --db-pass=superrootpass --db-host=mysql -vvv
     - cd moodle
     - php -S ${IPADDRESS}:8000 -t $CI_PROJECT_DIR/../moodle > /dev/null 2>&1 &
-    - moodle-plugin-ci phplint
-    - if [ "$ALLOW_ERRORS_PHPCPD" = "true" ]; then moodle-plugin-ci phpcpd || true && echo '-- PHPCPD ERRORS SKIPPED'; else moodle-plugin-ci phpcpd; fi
-    - moodle-plugin-ci phpmd
-    - moodle-plugin-ci codechecker
-    - moodle-plugin-ci mustache || true
-    - moodle-plugin-ci validate
-    - moodle-plugin-ci savepoints
-    - moodle-plugin-ci grunt || true
-    - moodle-plugin-ci phpdoc
-    - moodle-plugin-ci phpunit
-    - moodle-plugin-ci behat --suite default --profile chrome
+    - |
+      run_with_error_handling() {
+        local command=\$1
+        local allow_errors_var=\$2
+        local allow_errors_value=\${!allow_errors_var}
+
+        if [ "\$allow_errors_value" = "true" ]; then
+          \$command || true
+          echo "-- \${command^^} ERRORS SKIPPED"
+        else
+          \$command
+        fi
+      }
+
+      # Run moodle-plugin-ci commands with conditional error handling
+
+      run_with_error_handling "moodle-plugin-ci phplint" "ALLOW_ERRORS_PHPLINT"
+      run_with_error_handling "moodle-plugin-ci phpcpd" "ALLOW_ERRORS_PHPCPD"
+      run_with_error_handling "moodle-plugin-ci phpmd" "ALLOW_ERRORS_PHPMD"
+      run_with_error_handling "moodle-plugin-ci codechecker" "ALLOW_ERRORS_CODECHECKER"
+      run_with_error_handling "moodle-plugin-ci mustache" "ALLOW_ERRORS_MUSTACHE"
+      run_with_error_handling "moodle-plugin-ci validate" "ALLOW_ERRORS_VALIDATE"
+      run_with_error_handling "moodle-plugin-ci savepoints" "ALLOW_ERRORS_SAVEPOINTS"
+      run_with_error_handling "moodle-plugin-ci grunt" "ALLOW_ERRORS_GRUNT"
+      run_with_error_handling "moodle-plugin-ci phpdoc" "ALLOW_ERRORS_PHPDOC"
+      run_with_error_handling "moodle-plugin-ci phpunit" "ALLOW_ERRORS_PHPUNIT"
+      run_with_error_handling "moodle-plugin-ci behat --suite default --profile chrome" "ALLOW_ERRORS_BEHAT"
   except:
     - tags
