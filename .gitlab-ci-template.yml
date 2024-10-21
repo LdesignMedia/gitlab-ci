@@ -46,16 +46,19 @@ variables:
     - cd moodle
     - php -S ${IPADDRESS}:8000 -t $CI_PROJECT_DIR/../moodle > /dev/null 2>&1 &
     - |
+      ORANGE='\033[38;5;214m'
+      RESET='\033[0m'
+
       run_with_error_handling() {
         local command="$1"              # Use double quotes to capture the command correctly
         local allow_errors_var="$2"
         local allow_errors_value="${!allow_errors_var}"  # Correctly dereference the variable
 
         if [ "$allow_errors_value" = "true" ]; then
-          eval "$command" || true       # Use eval to execute the command
-          echo "-- ${command^^} ERRORS SKIPPED"
+          eval "$command" || true
+          echo -e "${ORANGE}-- ${command^^} ERRORS SKIPPED${RESET}"
         else
-          eval "$command"               # Use eval to execute the command
+          eval "$command"
         fi
       }
 
