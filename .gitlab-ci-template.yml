@@ -50,9 +50,9 @@ variables:
       RESET='\033[0m'
 
       run_with_error_handling() {
-        local command="$1"              # Use double quotes to capture the command correctly
+        local command="$1"
         local allow_errors_var="$2"
-        local allow_errors_value="${!allow_errors_var}"  # Correctly dereference the variable
+        local allow_errors_value="${!allow_errors_var}"
 
         if [ "$allow_errors_value" = "true" ]; then
           eval "$command" || true
@@ -61,8 +61,6 @@ variables:
           eval "$command"
         fi
       }
-
-      # Run moodle-plugin-ci commands with conditional error handling
 
       run_with_error_handling "moodle-plugin-ci phplint" "ALLOW_ERRORS_PHPLINT"
       run_with_error_handling "moodle-plugin-ci phpcpd" "ALLOW_ERRORS_PHPCPD"
