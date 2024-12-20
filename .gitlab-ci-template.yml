@@ -37,6 +37,7 @@ variables:
   image: moodlehq/moodle-workplace-plugin-ci:$PHP_VERSION
   script:
     # Update packages and/or install.
+    - echo -e "section_start:$(date +%s):install_env\r"
     - apt update && apt install -y mariadb-client
     - cd $CI_PROJECT_DIR/..
     - echo $MOODLE_REPO
@@ -47,6 +48,7 @@ variables:
     - moodle-plugin-ci install --db-user=root --db-pass=superrootpass --db-host=mysql -vvv
     - cd moodle
     - php -S ${IPADDRESS}:8000 -t $CI_PROJECT_DIR/../moodle > /dev/null 2>&1 &
+    - echo -e "section_end:$(date +%s):install_env\r"
     - |
       ORANGE='\033[38;5;214m'
       RESET='\033[0m'
