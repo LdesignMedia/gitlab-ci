@@ -1,23 +1,17 @@
-## Gitlab CI/CD template for Moodle plugins By Ldesign Media.
-## Author: Hamza Tamyachte
-## Copyright 17/07/2024 Mfreak.nl | LdesignMedia.nl - Luuk Verhoeven
-
 services:
   - mysql:latest
   - name: selenium/standalone-chrome:3
     alias: selenium-standalone-chrome
+
 variables:
   PHP_VERSION: "8.0"
   TRAVIS_BUILD_DIR: "$CI_PROJECT_DIR"
   MOODLE_REPO: "https://github.com/moodle/moodle.git"
-  # Moodle branches.
-  # Workplace.
   MOODLE_BRANCH_WORKPLACE405S: WORKPLACE_405_0
   MOODLE_BRANCH_WORKPLACE404S: WORKPLACE_404_3
   MOODLE_BRANCH_WORKPLACE403S: WORKPLACE_403_7
   MOODLE_BRANCH_WORKPLACE402S: WORKPLACE_402_10
   MOODLE_BRANCH_WORKPLACE401S: WORKPLACE_401_13
-  # LMS.
   MOODLE_BRANCH_LMS405: MOODLE_405_STABLE
   MOODLE_BRANCH_LMS404: MOODLE_404_STABLE
   MOODLE_BRANCH_LMS403: MOODLE_403_STABLE
@@ -25,10 +19,8 @@ variables:
   MOODLE_BRANCH_LMS401: MOODLE_401_STABLE
   MOODLE_BRANCH_LMS400: MOODLE_400_STABLE
   MOODLE_BRANCH_LMS39: MOODLE_39_STABLE
-  # Selenium.
   MOODLE_BEHAT_WDHOST: "http://selenium-standalone-chrome:4444/wd/hub"
   MOODLE_START_BEHAT_SERVERS: "NO"
-  # Database.
   DB: "mysqli"
   MYSQL_ROOT_PASSWORD: "superrootpass"
   MYSQL_ALLOW_EMPTY_PASSWORD: "true"
@@ -36,11 +28,8 @@ variables:
 .scriptshorttest: &scriptshorttest
   image: moodlehq/moodle-workplace-plugin-ci:$PHP_VERSION
   script:
-    # Update packages and/or install.
-    echo -e "section_start:$(date +%s):env[collapsed=true]\r"
-    # We don't allow compiling in the CI styles.scss this gives issues within plugins, only validating the styles.css output.
+    - echo -e "section_start:$(date +%s):env[collapsed=true]\r"
     - |
-      # Safe removal of styles.scss
       if [ -f styles.scss ]; then
         echo "Removing styles.scss"
         rm -f styles.scss
@@ -51,8 +40,7 @@ variables:
     - cd $CI_PROJECT_DIR/..
     - echo $MOODLE_REPO
     - rm -rf moodle
-    # Install Moodle includes the setup of PHPUnit and Behat when tests exist in the plugin directory.
-    - export IPADDRESS=`grep "${HOSTNAME}$" /etc/hosts |awk '{print $1}'`
+    - export IPADDRESS=`grep "${HOSTNAME}$" /etc/hosts | awk '{print $1}'`
     - export MOODLE_BEHAT_WWWROOT="http://${IPADDRESS}:8000"
     - moodle-plugin-ci install --db-user=root --db-pass=superrootpass --db-host=mysql -vvv
     - cd moodle
@@ -61,12 +49,10 @@ variables:
     - |
       ORANGE='\033[38;5;214m'
       RESET='\033[0m'
-
       run_with_error_handling() {
         local command="$1"
         local allow_errors_var="$2"
         local allow_errors_value="${!allow_errors_var}"
-
         if [ "$allow_errors_value" = "true" ]; then
           eval "$command" || true
           echo -e "${ORANGE}-- ${command^^} We are skipping errors (we ignore errors in these checks).${RESET}"
@@ -75,6 +61,7 @@ variables:
           eval "$command"
         fi
       }
+      
       echo -e "${ORANGE}Setup completed. Running the tests now:${RESET}"
       run_with_error_handling "moodle-plugin-ci phplint" "ALLOW_ERRORS_PHPLINT"
       run_with_error_handling "moodle-plugin-ci phpcpd" "ALLOW_ERRORS_PHPCPD"
