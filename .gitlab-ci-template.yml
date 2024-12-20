@@ -72,7 +72,8 @@ variables:
           fi
         done
       }
-
+      declare -f highlight_errors
+      
       run_with_error_handling() {
         local test_command="$1"
         local allow_errors_var="$2"
