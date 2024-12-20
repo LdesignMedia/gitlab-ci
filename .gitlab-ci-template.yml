@@ -57,13 +57,18 @@ variables:
       RED='\033[31m'
       RESET='\033[0m'
       
-      highlight_errors() {
+      # Highlight function for WARNING and ERROR
+      highlight_warnings_and_errors() {
         while IFS= read -r line; do
-        if echo "$line" | grep -q "ERROR"; then
-          echo -e "${RED}${line}${RESET}"
-        else
-          echo "$line"
-        fi
+          if echo "$line" | grep -q "FOUND 0 ERRORS"; then
+            continue  # Skip this line
+          elif echo "$line" | grep -q "ERROR"; then
+            echo -e "${RED}${line}${RESET}"
+          elif echo "$line" | grep -q "WARNING"; then
+            echo -e "${ORANGE}${line}${RESET}"
+          else
+            echo "$line"
+          fi
         done
       }
 
