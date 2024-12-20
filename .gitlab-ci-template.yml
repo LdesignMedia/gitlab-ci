@@ -38,6 +38,8 @@ variables:
   script:
     # Update packages and/or install.
     - echo -e "section_start:$(date +%s):install_env\r"
+    # We don't allow compiling in the CI styles.scss this gives issues within plugins, only validating the styles.css output.
+    - rm -rf styles.scss
     - apt update && apt install -y mariadb-client
     - cd $CI_PROJECT_DIR/..
     - echo $MOODLE_REPO
@@ -74,7 +76,7 @@ variables:
       run_with_error_handling "moodle-plugin-ci mustache" "ALLOW_ERRORS_MUSTACHE"
       run_with_error_handling "moodle-plugin-ci validate" "ALLOW_ERRORS_VALIDATE"
       run_with_error_handling "moodle-plugin-ci savepoints" "ALLOW_ERRORS_SAVEPOINTS"
-      run_with_error_handling "moodle-plugin-ci grunt --show-lint-warnings --exclude '**/styles.scss'" "ALLOW_ERRORS_GRUNT"
+      run_with_error_handling "moodle-plugin-ci grunt" "ALLOW_ERRORS_GRUNT"
       run_with_error_handling "moodle-plugin-ci phpdoc" "ALLOW_ERRORS_PHPDOC"
       run_with_error_handling "moodle-plugin-ci phpunit" "ALLOW_ERRORS_PHPUNIT"
       run_with_error_handling "moodle-plugin-ci behat --suite default --profile chrome" "ALLOW_ERRORS_BEHAT"
