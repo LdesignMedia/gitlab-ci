@@ -53,6 +53,7 @@ variables:
     - php -S ${IPADDRESS}:8000 -t $CI_PROJECT_DIR/../moodle > /dev/null 2>&1 &
     - echo -e "section_end:$(date +%s):env\r"
     - |
+      GREEN='\033[32m'
       ORANGE='\033[38;5;214m'
       RED='\033[31m'
       RESET='\033[0m'
@@ -61,7 +62,7 @@ variables:
       highlight_warnings_and_errors() {
         while IFS= read -r line; do
           if echo "$line" | grep -q "FOUND 0 ERRORS"; then
-            continue  # Skip this line
+            echo -e "${GREEN}${line}${RESET}"
           elif echo "$line" | grep -q "ERROR"; then
             echo -e "${RED}${line}${RESET}"
           elif echo "$line" | grep -q "WARNING"; then
