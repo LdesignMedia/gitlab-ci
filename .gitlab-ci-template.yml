@@ -60,9 +60,9 @@ variables:
 
         if [ "$allow_errors_value" = "true" ]; then
           eval "$command" || true
-          echo -e "${ORANGE}-- ${command^^} ERRORS SKIPPED${RESET}"
+          echo -e "${ORANGE}-- ${command^^} We are skipping errors (we ignore errors in these checks).${RESET}"
         else
-          echo -e "${command^^}"
+          echo -e "${ORANGE}-- ${command^^}${RESET}"
           eval "$command"
         fi
       }
