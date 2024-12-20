@@ -40,13 +40,13 @@ variables:
   image: moodlehq/moodle-workplace-plugin-ci:$PHP_VERSION
   script:
     - echo -e "section_start:$(date +%s):env[collapsed=true]\r"
-      - |
-      if [ -f styles.scss ]; then
-        echo "Removing styles.scss"
-        rm -f styles.scss
-      else
-        echo "styles.scss not found, skipping."
-      fi
+    - |
+        if [ -f styles.scss ]; then
+          echo "Removing styles.scss"
+          rm -f styles.scss
+        else
+          echo "styles.scss not found, skipping."
+        fi
     - apt update && apt install -y mariadb-client
     - cd $CI_PROJECT_DIR/..
     - echo $MOODLE_REPO
@@ -77,7 +77,7 @@ variables:
         local test_command="$1"
         local allow_errors_var="$2"
         local allow_errors="${!allow_errors_var}"
-        
+      
         if [ "$allow_errors" = "true" ]; then
           eval "$test_command" 2>&1 | highlight_errors || true
           echo -e "${ORANGE}Test ${test_command} completed with errors (ignored).${RESET}"
