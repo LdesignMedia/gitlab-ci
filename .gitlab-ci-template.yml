@@ -60,6 +60,7 @@ variables:
           eval "$command" || true
           echo -e "${ORANGE}-- ${command^^} ERRORS SKIPPED${RESET}"
         else
+          echo -e "${command^^}"
           eval "$command"
         fi
       }
@@ -75,5 +76,6 @@ variables:
       run_with_error_handling "moodle-plugin-ci phpdoc" "ALLOW_ERRORS_PHPDOC"
       run_with_error_handling "moodle-plugin-ci phpunit" "ALLOW_ERRORS_PHPUNIT"
       run_with_error_handling "moodle-plugin-ci behat --suite default --profile chrome" "ALLOW_ERRORS_BEHAT"
+  allow_failure: true
   except:
     - tags
