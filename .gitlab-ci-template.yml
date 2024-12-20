@@ -59,7 +59,7 @@ variables:
       RESET='\033[0m'
       
       # Highlight function for WARNING and ERROR
-      highlight_warnings_and_errors() {
+      highlight_errors() {
         while IFS= read -r line; do
           if echo "$line" | grep -q "FOUND 0 ERRORS"; then
             echo -e "${GREEN}${line}${RESET}"
