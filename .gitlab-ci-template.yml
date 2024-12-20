@@ -37,9 +37,16 @@ variables:
   image: moodlehq/moodle-workplace-plugin-ci:$PHP_VERSION
   script:
     # Update packages and/or install.
-    - echo -e "section_start:$(date +%s):install_env\r"
+    echo -e "section_start:$(date +%s):env[collapsed=true]\r"
     # We don't allow compiling in the CI styles.scss this gives issues within plugins, only validating the styles.css output.
-    - rm -rf styles.scss
+    - |
+      # Safe removal of styles.scss
+      if [ -f styles.scss ]; then
+        echo "Removing styles.scss"
+        rm -f styles.scss
+      else
+        echo "styles.scss not found, skipping."
+      fi
     - apt update && apt install -y mariadb-client
     - cd $CI_PROJECT_DIR/..
     - echo $MOODLE_REPO
@@ -50,7 +57,7 @@ variables:
     - moodle-plugin-ci install --db-user=root --db-pass=superrootpass --db-host=mysql -vvv
     - cd moodle
     - php -S ${IPADDRESS}:8000 -t $CI_PROJECT_DIR/../moodle > /dev/null 2>&1 &
-    - echo -e "section_end:$(date +%s):install_env\r"
+    - echo -e "section_end:$(date +%s):env\r"
     - |
       ORANGE='\033[38;5;214m'
       RESET='\033[0m'
@@ -68,7 +75,7 @@ variables:
           eval "$command"
         fi
       }
-
+      echo -e "${ORANGE}Setup completed. Running the tests now:${RESET}"
       run_with_error_handling "moodle-plugin-ci phplint" "ALLOW_ERRORS_PHPLINT"
       run_with_error_handling "moodle-plugin-ci phpcpd" "ALLOW_ERRORS_PHPCPD"
       run_with_error_handling "moodle-plugin-ci phpmd" "ALLOW_ERRORS_PHPMD"
