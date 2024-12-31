@@ -40,7 +40,9 @@ variables:
   image: moodlehq/moodle-workplace-plugin-ci:$PHP_VERSION
   script:
     - echo -e "section_start:$(date +%s):env[collapsed=true]\r"
+    # Prevent checking styles.scss and styles.css files, as they are incorrectly formatted by PHPStorm, and there is no reliable way to validate them.
     - if [ -f styles.scss ]; then echo "Removing styles.scss"; rm -f styles.scss; else echo "styles.scss not found, skipping."; fi
+    - if [ -f styles.css ]; then echo "Removing styles.css"; rm -f styles.css; else echo "styles.css not found, skipping."; fi
     - apt update && apt install -y mariadb-client
     - cd $CI_PROJECT_DIR/..
     - echo $MOODLE_REPO
