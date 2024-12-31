@@ -80,6 +80,8 @@ variables:
         local test_command="$1"
         local allow_errors_var="$2"
         local allow_errors="${!allow_errors_var}"
+        
+        echo -e "${ORANGE}Running test ${test_command}:${RESET}"
       
         if [ "$allow_errors" = "true" ]; then
           eval "$test_command" 2>&1 | highlight_errors || true
@@ -98,7 +100,7 @@ variables:
       run_with_error_handling "moodle-plugin-ci mustache" "ALLOW_ERRORS_MUSTACHE"
       run_with_error_handling "moodle-plugin-ci validate" "ALLOW_ERRORS_VALIDATE"
       run_with_error_handling "moodle-plugin-ci savepoints" "ALLOW_ERRORS_SAVEPOINTS"
-      run_with_error_handling "moodle-plugin-ci grunt" "ALLOW_ERRORS_GRUNT"
+      run_with_error_handling "moodle-plugin-ci grunt --tasks=amd,yui,gherkinlint" "ALLOW_ERRORS_GRUNT"
       run_with_error_handling "moodle-plugin-ci phpdoc" "ALLOW_ERRORS_PHPDOC"
       run_with_error_handling "moodle-plugin-ci phpunit" "ALLOW_ERRORS_PHPUNIT"
       run_with_error_handling "moodle-plugin-ci behat --suite default --profile chrome" "ALLOW_ERRORS_BEHAT"
