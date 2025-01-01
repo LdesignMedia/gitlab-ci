@@ -62,17 +62,33 @@ variables:
       
       # Highlight function for WARNING and ERROR
       highlight_errors() {
-        while IFS= read -r line; do
-          if echo "$line" | grep -q "FOUND 0 ERRORS"; then
-            echo -e "${GREEN}${line}${RESET}"
-          elif echo "$line" | grep -q "ERROR"; then
-            echo -e "${RED}${line}${RESET}"
-          elif echo "$line" | grep -q "WARNING"; then
-            echo -e "${ORANGE}${line}${RESET}"
-          else
-            echo "$line"
-          fi
-        done
+      
+          declare -A patterns
+      
+          # Define colors for the different patterns.
+          patterns=(
+                ["FOUND 0 ERRORS"]=$GREEN
+                ["ERROR"]=$RED
+                ["WARNING"]=$ORANGE
+                ["File is stale and needs to be rebuilt"]=$RED
+          )
+      
+          # Read input line by line
+          while IFS= read -r line; do
+            matched=false
+            for pattern in "${!patterns[@]}"; do
+              if [[ "$line" == *"$pattern"* ]]; then
+                echo -e "${patterns[$pattern]}${line}${RESET}"
+                matched=true
+                break
+              fi
+            done
+      
+            # If no pattern matches, print the line as-is
+            if [[ $matched == false ]]; then
+              echo "$line"
+            fi
+          done
       }
       declare -f highlight_errors
       
