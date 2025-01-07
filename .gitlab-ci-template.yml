@@ -72,11 +72,19 @@ variables:
                 ["WARNING"]=$ORANGE
                 ["File is stale and needs to be rebuilt"]=$RED
           )
-      
+          
+          # Define the order explicitly, needed for the correct coloring.
+          order=(
+              "FOUND 0 ERRORS"
+              "ERROR"
+              "WARNING"
+              "File is stale and needs to be rebuilt"
+          )
+          
           # Read input line by line
           while IFS= read -r line; do
             matched=false
-            for pattern in "${!patterns[@]}"; do
+            for pattern in "${order[@]}"; do
               if [[ "$line" == *"$pattern"* ]]; then
                 echo -e "${patterns[$pattern]}${line}${RESET}"
                 matched=true
