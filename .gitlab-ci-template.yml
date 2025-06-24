@@ -119,7 +119,29 @@ variables:
         fi
       }
       
+      check_language_strings() {
+        if [ -n "$LDESIGN_SCRIPTS_TOKEN" ]; then
+          echo -e "${ORANGE}Downloading language string check script...${RESET}"
+          curl -H "Authorization: token $LDESIGN_SCRIPTS_TOKEN" \
+               -H "Accept: application/vnd.github.v3.raw" \
+               -L "https://api.github.com/repos/LdesignMedia/scripts/contents/server/root/scripts/check_language_strings.sh" \
+               -o /tmp/check_language_strings.sh
+          
+          if [ -f /tmp/check_language_strings.sh ]; then
+            chmod +x /tmp/check_language_strings.sh
+            run_with_error_handling "/tmp/check_language_strings.sh $CI_PROJECT_DIR" "ALLOW_ERRORS_LANGUAGE_CHECK"
+            rm -f /tmp/check_language_strings.sh
+          else
+            echo -e "${RED}Failed to download language check script${RESET}"
+          fi
+        fi
+      }
+      
       echo -e "${ORANGE}Setup completed. Running the tests now:${RESET}"
+      
+      # Run language string check
+      check_language_strings
+      
       run_with_error_handling "moodle-plugin-ci phplint" "ALLOW_ERRORS_PHPLINT"
       run_with_error_handling "moodle-plugin-ci phpcpd" "ALLOW_ERRORS_PHPCPD"
       run_with_error_handling "moodle-plugin-ci phpmd" "ALLOW_ERRORS_PHPMD"
