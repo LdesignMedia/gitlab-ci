@@ -200,13 +200,13 @@ scan_php_file_for_strings() {
     
     # Pattern 1: get_string('identifier', 'component')
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
+        if [[ "$line_content" =~ get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
-        elif [[ "$line_content" =~ get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
+        elif [[ "$line_content" =~ get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component=$(get_component_from_path "$file")
             if [[ -n "$component" ]]; then  # Skip if component is empty (core files)
@@ -219,7 +219,7 @@ scan_php_file_for_strings() {
     
     # Pattern 2: new lang_string('identifier', 'component')
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ new\s+lang_string\s*\(\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
+        if [[ "$line_content" =~ new\s+lang_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
             USED_STRINGS["${component}:${string_id}"]=1
@@ -251,7 +251,7 @@ scan_javascript_file_for_strings() {
     
     # Pattern 1: M.util.get_string('identifier', 'component')
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ M\.util\.get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
+        if [[ "$line_content" =~ M\.util\.get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
             USED_STRINGS["${component}:${string_id}"]=1
@@ -262,7 +262,7 @@ scan_javascript_file_for_strings() {
     
     # Pattern 2: getString('identifier', 'component')
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ getString\s*\(\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
+        if [[ "$line_content" =~ getString\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
             USED_STRINGS["${component}:${string_id}"]=1
@@ -278,24 +278,14 @@ scan_path_for_strings() {
     
     log_verbose "Scanning for language strings in: $search_path"
     
-    # Scan PHP files
+    # Scan PHP files (excluding language files which are handled separately)
     while IFS= read -r file; do
+        # Skip language files - they're handled by build_component_string_union
+        if [[ "$file" =~ /lang/.*/.*\.php$ ]]; then
+            continue
+        fi
         log_verbose "  Checking: $file"
         scan_php_file_for_strings "$file"
-        
-        # Check if it's a language file and load definitions
-        if [[ "$file" =~ /lang/.*/.*\.php$ ]]; then
-            local component=$(get_component_from_path "$file")
-            if [[ -n "$component" ]]; then  # Skip if component is empty (core files)
-                while IFS= read -r line; do
-                    if [[ "$line" =~ \$string\[[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
-                        local string_id="${BASH_REMATCH[1]}"
-                        ALL_DEFINED_STRINGS["${component}:${string_id}"]=1
-                        log_verbose "    Language file defines: ${component}:${string_id}"
-                    fi
-                done < <(grep "^\s*\$string\[['\"]" "$file" 2>/dev/null)
-            fi
-        fi
     done < <(find "$search_path" -name "*.php" -type f 2>/dev/null | grep -v "/vendor/" | grep -v "/node_modules/")
     
     # Scan Mustache templates
@@ -319,19 +309,49 @@ load_strings_to_union() {
     local component="$2"
     local language="$3"
     
-    [[ ! -f "$lang_file" ]] && return
+    if [[ ! -f "$lang_file" ]]; then
+        log_verbose "  Language file does not exist: $lang_file"
+        return
+    fi
     
     log_verbose "  Loading $language strings from: $lang_file"
     
+    # Debug: Show first few lines of the file
+    log_verbose "  First 5 lines of file:"
+    head -5 "$lang_file" 2>/dev/null | while read -r line; do
+        log_verbose "    $line"
+    done
+    
+    local count=0
     while IFS= read -r line; do
-        if [[ "$line" =~ \$string\[[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
+        if [[ "$line" =~ \$string\[[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             # Add to union of all strings
             ALL_DEFINED_STRINGS["${component}:${string_id}"]=1
             # Track which language has this string
             LANGUAGE_STRINGS["${language}:${component}:${string_id}"]=1
+            ((count++))
+            log_verbose "    Found string: ${component}:${string_id}"
         fi
     done < <(grep "^\s*\$string\[['\"]" "$lang_file" 2>/dev/null)
+    
+    # If no strings found, try without the ^ anchor in case of different formatting
+    if [[ $count -eq 0 ]]; then
+        log_verbose "  No strings found with standard pattern, trying alternative pattern..."
+        while IFS= read -r line; do
+            if [[ "$line" =~ \$string\[[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+                local string_id="${BASH_REMATCH[1]}"
+                # Add to union of all strings
+                ALL_DEFINED_STRINGS["${component}:${string_id}"]=1
+                # Track which language has this string
+                LANGUAGE_STRINGS["${language}:${component}:${string_id}"]=1
+                ((count++))
+                log_verbose "    Found string (alt): ${component}:${string_id}"
+            fi
+        done < <(grep "\$string\[['\"]" "$lang_file" 2>/dev/null)
+    fi
+    
+    log_verbose "  Loaded $count strings from $lang_file"
 }
 
 # Function to build union of all strings from all languages for a component
@@ -340,18 +360,22 @@ build_component_string_union() {
     
     local plugin_path=$(get_plugin_path_from_component "$component")
     if [[ -n "$plugin_path" ]]; then
+        log_verbose "Looking for language files in: $MOODLE_PATH/$plugin_path/lang"
         # Check all language directories for this plugin
         for lang_dir in "$MOODLE_PATH/$plugin_path/lang"/*; do
             if [[ -d "$lang_dir" ]]; then
                 local lang_code=$(basename "$lang_dir")
-                # Load all PHP files in the language directory
-                for lang_file in "$lang_dir"/*.php; do
-                    if [[ -f "$lang_file" ]]; then
-                        load_strings_to_union "$lang_file" "$component" "$lang_code"
-                    fi
-                done
+                # Get the specific language file for this component
+                local lang_file=$(get_language_file_path "$component" "$lang_code")
+                if [[ -f "$lang_file" ]]; then
+                    load_strings_to_union "$lang_file" "$component" "$lang_code"
+                else
+                    log_verbose "Language file not found: $lang_file"
+                fi
             fi
         done
+    else
+        log_verbose "Could not determine plugin path for component: $component"
     fi
 }
 
@@ -526,6 +550,7 @@ main() {
     # Build the union of all strings from all languages
     echo "Building union of language strings from all languages..."
     build_component_string_union "$COMPONENT"
+    echo "Debug: Found ${#ALL_DEFINED_STRINGS[@]} strings in total"
     
     # Perform all checks
     check_missing_strings
