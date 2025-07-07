@@ -121,7 +121,7 @@ variables:
       }
 
       echo -e "${ORANGE}Setup completed. Running the tests now:${RESET}"
-      run_with_error_handling "curl -sL '$LANGUAGE_CHECK_SCRIPT_URL' | bash -s -- '$CI_PROJECT_DIR'" "ALLOW_ERRORS_LANGUAGE_CHECK"
+      run_with_error_handling "curl -sL '$LANGUAGE_CHECK_SCRIPT_URL' | bash -s -- '$CI_PROJECT_DIR/../moodle'" "ALLOW_ERRORS_LANGUAGE_CHECK"
       run_with_error_handling "moodle-plugin-ci phplint" "ALLOW_ERRORS_PHPLINT"
       run_with_error_handling "moodle-plugin-ci phpcpd" "ALLOW_ERRORS_PHPCPD"
       run_with_error_handling "moodle-plugin-ci phpmd" "ALLOW_ERRORS_PHPMD"

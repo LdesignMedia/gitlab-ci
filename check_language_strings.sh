@@ -484,39 +484,28 @@ main() {
     echo "Moodle Language String Checker"
     echo "=============================="
     echo "Moodle path: $MOODLE_PATH"
-    [[ -n "$COMPONENT" ]] && echo "Component: $COMPONENT"
-    echo ""
     
     # Validate Moodle installation
     validate_moodle_installation
     
     # Determine search paths
     local search_paths=()
+    # Auto-detect component from current directory
+    COMPONENT=$(auto_detect_component)
     if [[ -n "$COMPONENT" ]]; then
+        echo "Auto-detected component: $COMPONENT"
         local plugin_path=$(get_plugin_path_from_component "$COMPONENT")
         if [[ -n "$plugin_path" ]]; then
             search_paths=("$MOODLE_PATH/$plugin_path")
         else
-            echo -e "${RED}Error: Unknown component type: $COMPONENT${NC}"
+            echo -e "${RED}Error: Could not determine plugin path for: $COMPONENT${NC}"
             exit 2
         fi
     else
-        # Auto-detect component from current directory
-        COMPONENT=$(auto_detect_component)
-        if [[ -n "$COMPONENT" ]]; then
-            echo "Auto-detected component: $COMPONENT"
-            local plugin_path=$(get_plugin_path_from_component "$COMPONENT")
-            if [[ -n "$plugin_path" ]]; then
-                search_paths=("$MOODLE_PATH/$plugin_path")
-            else
-                echo -e "${RED}Error: Could not determine plugin path for: $COMPONENT${NC}"
-                exit 2
-            fi
-        else
-            echo -e "${RED}Error: Could not detect component. Please specify a component or run from a plugin directory.${NC}"
-            exit 2
-        fi
+        echo -e "${RED}Error: Could not detect component. Please specify a component or run from a plugin directory.${NC}"
+        exit 2
     fi
+
     
     # Scan for used strings
     echo "Scanning for language string usage..."
@@ -565,9 +554,6 @@ while [[ $# -gt 0 ]]; do
         *)
             if [[ -z "$MOODLE_PATH" ]]; then
                 MOODLE_PATH="$1"
-            elif [[ -z "$COMPONENT" ]]; then
-                COMPONENT="$1"
-            fi
             shift
             ;;
     esac
