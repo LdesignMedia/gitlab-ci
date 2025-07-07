@@ -10,6 +10,7 @@ variables:
   PHP_VERSION: "8.0"
   TRAVIS_BUILD_DIR: "$CI_PROJECT_DIR"
   MOODLE_REPO: "https://github.com/moodle/moodle.git"
+  LANGUAGE_CHECK_SCRIPT_URL: "https://raw.githubusercontent.com/LdesignMedia/gitlab-ci/main/check_language_strings.sh"
 
   # Workplace branches
   MOODLE_BRANCH_WORKPLACE500S: WORKPLACE_500_0
@@ -118,30 +119,9 @@ variables:
           echo -e "${ORANGE}Test ${test_command} completed successfully.${RESET}"
         fi
       }
-      
-      check_language_strings() {
-        if [ -n "$LDESIGN_SCRIPTS_TOKEN" ]; then
-          echo -e "${ORANGE}Downloading language string check script...${RESET}"
-          curl -H "Authorization: token $LDESIGN_SCRIPTS_TOKEN" \
-               -H "Accept: application/vnd.github.v3.raw" \
-               -L "https://api.github.com/repos/LdesignMedia/scripts/contents/server/root/scripts/check_language_strings.sh" \
-               -o /tmp/check_language_strings.sh
-          
-          if [ -f /tmp/check_language_strings.sh ]; then
-            chmod +x /tmp/check_language_strings.sh
-            run_with_error_handling "/tmp/check_language_strings.sh $CI_PROJECT_DIR" "ALLOW_ERRORS_LANGUAGE_CHECK"
-            rm -f /tmp/check_language_strings.sh
-          else
-            echo -e "${RED}Failed to download language check script${RESET}"
-          fi
-        fi
-      }
-      
+
       echo -e "${ORANGE}Setup completed. Running the tests now:${RESET}"
-      
-      # Run language string check
-      check_language_strings
-      
+      run_with_error_handling "curl -sL '$LANGUAGE_CHECK_SCRIPT_URL' | bash -s -- '$CI_PROJECT_DIR'" "ALLOW_ERRORS_LANGUAGE_CHECK"
       run_with_error_handling "moodle-plugin-ci phplint" "ALLOW_ERRORS_PHPLINT"
       run_with_error_handling "moodle-plugin-ci phpcpd" "ALLOW_ERRORS_PHPCPD"
       run_with_error_handling "moodle-plugin-ci phpmd" "ALLOW_ERRORS_PHPMD"
@@ -157,6 +137,7 @@ variables:
       run_with_error_handling "moodle-plugin-ci phpunit" "ALLOW_ERRORS_PHPUNIT"
       run_with_error_handling "vendor/bin/phpunit --colors --no-coverage --testsuite tool_dataprivacy_testsuite,tool_policy_testsuite,core_privacy_testsuite" "ALLOW_ERRORS_PRIVACY"
       run_with_error_handling "moodle-plugin-ci behat --suite default --profile chrome" "ALLOW_ERRORS_BEHAT"
+      run_with_error_handling "moodle-plugin-ci behat --auto-rerun=0 --profile chrome admin/tool/xmldb" "ALLOW_ERRORS_XMLDB"
   allow_failure: true
   except:
     - tags
