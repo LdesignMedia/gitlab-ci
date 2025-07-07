@@ -169,7 +169,10 @@ get_language_file_path() {
     
     local plugin_path=$(get_plugin_path_from_component "$component")
     if [[ -n "$plugin_path" ]]; then
-        echo "$MOODLE_PATH/$plugin_path/lang/$language/$component.php"
+        # For tool plugins, the filename is tool_[name].php
+        local plugin_type=$(get_plugin_type_from_component "$component")
+        local plugin_name=$(get_plugin_name_from_component "$component")
+        echo "$MOODLE_PATH/$plugin_path/lang/$language/${plugin_type}_${plugin_name}.php"
     fi
 }
 
@@ -196,7 +199,7 @@ scan_php_file_for_strings() {
     local file="$1"
     
     # Pattern 1: get_string('identifier', 'component')
-    grep -Hn "get_string\s*(\s*['\"]" "$file" 2>/dev/null | while IFS=: read -r line_num line_content; do
+    while IFS=: read -r line_num line_content; do
         if [[ "$line_content" =~ get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
@@ -212,10 +215,10 @@ scan_php_file_for_strings() {
                 log_verbose "    Found: ${component}:${string_id} (implicit component)"
             fi
         fi
-    done
+    done < <(grep -Hn "get_string\s*(\s*['\"]" "$file" 2>/dev/null)
     
     # Pattern 2: new lang_string('identifier', 'component')
-    grep -Hn "new\s\+lang_string\s*(\s*['\"]" "$file" 2>/dev/null | while IFS=: read -r line_num line_content; do
+    while IFS=: read -r line_num line_content; do
         if [[ "$line_content" =~ new\s+lang_string\s*\(\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
@@ -223,7 +226,7 @@ scan_php_file_for_strings() {
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
         fi
-    done
+    done < <(grep -Hn "new\s\+lang_string\s*(\s*['\"]" "$file" 2>/dev/null)
 }
 
 # Function to scan Mustache templates
@@ -231,7 +234,7 @@ scan_mustache_file_for_strings() {
     local file="$1"
     
     # Pattern: {{#str}} identifier, component {{/str}}
-    grep -Hn "{{#str}}" "$file" 2>/dev/null | while IFS=: read -r line_num line_content; do
+    while IFS=: read -r line_num line_content; do
         if [[ "$line_content" =~ \{\{#str\}\}\s*([-_a-zA-Z0-9]+)\s*,\s*([-_a-zA-Z0-9]+)\s*\{\{/str\}\} ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
@@ -239,7 +242,7 @@ scan_mustache_file_for_strings() {
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
         fi
-    done
+    done < <(grep -Hn "{{#str}}" "$file" 2>/dev/null)
 }
 
 # Function to scan JavaScript files
@@ -247,7 +250,7 @@ scan_javascript_file_for_strings() {
     local file="$1"
     
     # Pattern 1: M.util.get_string('identifier', 'component')
-    grep -Hn "M\.util\.get_string\s*(" "$file" 2>/dev/null | while IFS=: read -r line_num line_content; do
+    while IFS=: read -r line_num line_content; do
         if [[ "$line_content" =~ M\.util\.get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
@@ -255,10 +258,10 @@ scan_javascript_file_for_strings() {
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
         fi
-    done
+    done < <(grep -Hn "M\.util\.get_string\s*(" "$file" 2>/dev/null)
     
     # Pattern 2: getString('identifier', 'component')
-    grep -Hn "getString\s*(" "$file" 2>/dev/null | while IFS=: read -r line_num line_content; do
+    while IFS=: read -r line_num line_content; do
         if [[ "$line_content" =~ getString\s*\(\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
@@ -266,7 +269,7 @@ scan_javascript_file_for_strings() {
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
         fi
-    done
+    done < <(grep -Hn "getString\s*(" "$file" 2>/dev/null)
 }
 
 # Function to scan all files in a path
@@ -276,7 +279,7 @@ scan_path_for_strings() {
     log_verbose "Scanning for language strings in: $search_path"
     
     # Scan PHP files
-    find "$search_path" -name "*.php" -type f 2>/dev/null | grep -v "/vendor/" | grep -v "/node_modules/" | while read -r file; do
+    while IFS= read -r file; do
         log_verbose "  Checking: $file"
         scan_php_file_for_strings "$file"
         
@@ -284,28 +287,28 @@ scan_path_for_strings() {
         if [[ "$file" =~ /lang/.*/.*\.php$ ]]; then
             local component=$(get_component_from_path "$file")
             if [[ -n "$component" ]]; then  # Skip if component is empty (core files)
-                grep "^\s*\$string\[['\"]" "$file" 2>/dev/null | while read -r line; do
+                while IFS= read -r line; do
                     if [[ "$line" =~ \$string\[[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
                         local string_id="${BASH_REMATCH[1]}"
                         ALL_DEFINED_STRINGS["${component}:${string_id}"]=1
                         log_verbose "    Language file defines: ${component}:${string_id}"
                     fi
-                done
+                done < <(grep "^\s*\$string\[['\"]" "$file" 2>/dev/null)
             fi
         fi
-    done
+    done < <(find "$search_path" -name "*.php" -type f 2>/dev/null | grep -v "/vendor/" | grep -v "/node_modules/")
     
     # Scan Mustache templates
-    find "$search_path" -name "*.mustache" -type f 2>/dev/null | grep -v "/vendor/" | grep -v "/node_modules/" | while read -r file; do
+    while IFS= read -r file; do
         log_verbose "  Checking: $file"
         scan_mustache_file_for_strings "$file"
-    done
+    done < <(find "$search_path" -name "*.mustache" -type f 2>/dev/null | grep -v "/vendor/" | grep -v "/node_modules/")
     
     # Scan JavaScript files
-    find "$search_path" -name "*.js" -type f 2>/dev/null | grep -v "/vendor/" | grep -v "/node_modules/" | grep -v "/lib/yui/" | while read -r file; do
+    while IFS= read -r file; do
         log_verbose "  Checking: $file"
         scan_javascript_file_for_strings "$file"
-    done
+    done < <(find "$search_path" -name "*.js" -type f 2>/dev/null | grep -v "/vendor/" | grep -v "/node_modules/" | grep -v "/lib/yui/")
 }
 
 
@@ -320,7 +323,7 @@ load_strings_to_union() {
     
     log_verbose "  Loading $language strings from: $lang_file"
     
-    grep "^\s*\$string\[['\"]" "$lang_file" 2>/dev/null | while read -r line; do
+    while IFS= read -r line; do
         if [[ "$line" =~ \$string\[[\'\"]([-_a-zA-Z0-9]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             # Add to union of all strings
@@ -328,7 +331,7 @@ load_strings_to_union() {
             # Track which language has this string
             LANGUAGE_STRINGS["${language}:${component}:${string_id}"]=1
         fi
-    done
+    done < <(grep "^\s*\$string\[['\"]" "$lang_file" 2>/dev/null)
 }
 
 # Function to build union of all strings from all languages for a component
@@ -377,7 +380,7 @@ check_unused_strings() {
     echo "Checking for potentially unused language strings..."
     echo ""
     
-    for key in "${!FOUND_STRINGS[@]}"; do
+    for key in "${!ALL_DEFINED_STRINGS[@]}"; do
         if [[ -z "${USED_STRINGS[$key]}" ]]; then
             ((UNUSED_COUNT++))
             echo -e "${YELLOW}POSSIBLY UNUSED:${NC} $key"
@@ -442,8 +445,12 @@ check_translation_completeness() {
         echo "Summary for $lang:"
         echo "  Defined: $lang_has_count"
         echo -e "  Missing: ${RED}$lang_missing_count${NC}"
-        local coverage=$((lang_has_count * 100 / ${#ALL_DEFINED_STRINGS[@]}))
-        echo "  Coverage: $coverage%"
+        if [[ ${#ALL_DEFINED_STRINGS[@]} -gt 0 ]]; then
+            local coverage=$((lang_has_count * 100 / ${#ALL_DEFINED_STRINGS[@]}))
+            echo "  Coverage: $coverage%"
+        else
+            echo "  Coverage: N/A (no strings in union)"
+        fi
         
         if [[ $lang_missing_count -eq 0 ]]; then
             echo -e "${GREEN}✓ Complete translation!${NC}"
@@ -475,7 +482,6 @@ determine_exit_status() {
     
     echo ""
     echo -e "${GREEN}SUCCESS: All language strings found!${NC}"
-    [[ $CHECK_TRANSLATIONS -eq 1 ]] && echo -e "${GREEN}SUCCESS: All translations complete!${NC}"
     exit 0
 }
 
