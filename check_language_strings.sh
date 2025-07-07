@@ -554,6 +554,7 @@ while [[ $# -gt 0 ]]; do
         *)
             if [[ -z "$MOODLE_PATH" ]]; then
                 MOODLE_PATH="$1"
+            fi
             shift
             ;;
     esac
