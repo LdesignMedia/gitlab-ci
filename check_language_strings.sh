@@ -427,7 +427,7 @@ check_translation_completeness() {
     fi
     
     echo "Languages found: $languages_to_check"
-    echo "Total unique strings in union: ${#ALL_DEFINED_STRINGS[@]}"
+    echo "Strings used in code: ${#USED_STRINGS[@]}"
     echo ""
     
     # Check each language against the union
@@ -444,14 +444,13 @@ check_translation_completeness() {
         local lang_missing_count=0
         local lang_has_count=0
         
-        # Check which strings from the union exist in this language
-        for key in "${!ALL_DEFINED_STRINGS[@]}"; do
+        # Check all strings used in code - this is what matters for each language
+        for key in "${!USED_STRINGS[@]}"; do
             if [[ -z "${LANGUAGE_STRINGS[$lang:$key]}" ]]; then
                 ((lang_missing_count++))
-                ((MISSING_TRANSLATIONS_COUNT++))
                 echo -e "${RED}MISSING:${NC} $key"
                 
-                # Show which languages have this string
+                # Show which languages have this string (if any)
                 local has_in_langs=""
                 for check_lang in "${LANG_ARRAY[@]}"; do
                     check_lang=$(echo "$check_lang" | tr -d ' ')
@@ -459,21 +458,43 @@ check_translation_completeness() {
                         has_in_langs="$has_in_langs $check_lang"
                     fi
                 done
-                [[ -n "$has_in_langs" ]] && echo -e "  Available in:$has_in_langs"
+                if [[ -n "$has_in_langs" ]]; then
+                    echo -e "  Available in:$has_in_langs"
+                else
+                    echo -e "  ${RED}Not defined in any language${NC}"
+                fi
             else
                 ((lang_has_count++))
             fi
         done
         
+        # Check for unused strings in this language (defined but not used in code)
+        local unused_count=0
+        if [[ $CHECK_UNUSED -eq 1 ]]; then
+            echo ""
+            echo "Unused strings in $lang:"
+            for key in "${!ALL_DEFINED_STRINGS[@]}"; do
+                if [[ -n "${LANGUAGE_STRINGS[$lang:$key]}" ]] && [[ -z "${USED_STRINGS[$key]}" ]]; then
+                    ((unused_count++))
+                    echo -e "${YELLOW}UNUSED:${NC} $key"
+                fi
+            done
+        fi
+        
         echo ""
         echo "Summary for $lang:"
         echo "  Defined: $lang_has_count"
         echo -e "  Missing: ${RED}$lang_missing_count${NC}"
-        if [[ ${#ALL_DEFINED_STRINGS[@]} -gt 0 ]]; then
-            local coverage=$((lang_has_count * 100 / ${#ALL_DEFINED_STRINGS[@]}))
+        if [[ $CHECK_UNUSED -eq 1 ]]; then
+            echo -e "  Unused: ${YELLOW}$unused_count${NC}"
+        fi
+        # Coverage should be based on strings used in code
+        local total_needed=$((${#USED_STRINGS[@]}))
+        if [[ $total_needed -gt 0 ]]; then
+            local coverage=$((lang_has_count * 100 / total_needed))
             echo "  Coverage: $coverage%"
         else
-            echo "  Coverage: N/A (no strings in union)"
+            echo "  Coverage: N/A"
         fi
         
         if [[ $lang_missing_count -eq 0 ]]; then
