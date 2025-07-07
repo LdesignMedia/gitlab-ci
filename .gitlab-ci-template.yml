@@ -10,7 +10,7 @@ variables:
   PHP_VERSION: "8.0"
   TRAVIS_BUILD_DIR: "$CI_PROJECT_DIR"
   MOODLE_REPO: "https://github.com/moodle/moodle.git"
-  LANGUAGE_CHECK_SCRIPT_URL: "https://raw.githubusercontent.com/LdesignMedia/gitlab-ci/refs/heads/86c3jwyjm_language-string-checker/.gitlab-ci-template.yml"
+  LANGUAGE_CHECK_SCRIPT_URL: "https://raw.githubusercontent.com/LdesignMedia/gitlab-ci/refs/heads/86c3jwyjm_language-string-checker/check_language_strings.sh"
 
   # Workplace branches
   MOODLE_BRANCH_WORKPLACE500S: WORKPLACE_500_0
