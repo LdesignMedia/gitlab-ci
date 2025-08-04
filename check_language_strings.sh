@@ -34,6 +34,7 @@ declare -A USED_STRINGS
 declare -A STRING_LOCATIONS
 declare -A ALL_DEFINED_STRINGS  # Union of all strings across all languages
 declare -A LANGUAGE_STRINGS  # Tracks which strings exist in which language
+declare -A CROSS_COMPONENT_STRINGS  # Track cross-component dependencies
 
 # Plugin type mappings
 declare -A PLUGIN_TYPES=(
@@ -194,6 +195,34 @@ find_available_languages() {
     echo "${languages#,}"  # Remove leading comma
 }
 
+# Function to check if a component is a core Moodle component
+is_core_component() {
+    local component="$1"
+    
+    # Check if it's a core component
+    if [[ "$component" == "moodle" ]] || \
+       [[ "$component" == "core" ]] || \
+       [[ "$component" =~ ^core_ ]] || \
+       [[ "$component" == "" ]]; then
+        return 0  # true - is core
+    fi
+    
+    return 1  # false - not core
+}
+
+# Function to check if a component is from another plugin (not core, not current)
+is_other_plugin_component() {
+    local component="$1"
+    local current_component="$2"
+    
+    # Not core and not the current component
+    if ! is_core_component "$component" && [[ "$component" != "$current_component" ]] && [[ -n "$component" ]]; then
+        return 0  # true - is other plugin
+    fi
+    
+    return 1  # false - not other plugin
+}
+
 # Function to scan PHP files for get_string calls
 scan_php_file_for_strings() {
     local file="$1"
@@ -203,17 +232,25 @@ scan_php_file_for_strings() {
         if [[ "$line_content" =~ get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
+            
+            # Skip core components
+            if is_core_component "$component"; then
+                log_verbose "    Skipping core string: ${component}:${string_id}"
+                continue
+            elif is_other_plugin_component "$component" "$COMPONENT"; then
+                # Track cross-component dependency
+                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                continue
+            fi
+            
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
         elif [[ "$line_content" =~ get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+            # get_string with single parameter is always a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
-            local component=$(get_component_from_path "$file")
-            if [[ -n "$component" ]]; then  # Skip if component is empty (core files)
-                USED_STRINGS["${component}:${string_id}"]=1
-                STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
-                log_verbose "    Found: ${component}:${string_id} (implicit component)"
-            fi
+            log_verbose "    Skipping core string (no component): ${string_id}"
         fi
     done < <(grep -Hn "get_string\s*(\s*['\"]" "$file" 2>/dev/null)
     
@@ -222,9 +259,25 @@ scan_php_file_for_strings() {
         if [[ "$line_content" =~ new\s+lang_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
+            
+            # Skip core components
+            if is_core_component "$component"; then
+                log_verbose "    Skipping core string: ${component}:${string_id}"
+                continue
+            elif is_other_plugin_component "$component" "$COMPONENT"; then
+                # Track cross-component dependency
+                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                continue
+            fi
+            
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
+        elif [[ "$line_content" =~ new\s+lang_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+            # new lang_string with single parameter is a core string - skip it
+            local string_id="${BASH_REMATCH[1]}"
+            log_verbose "    Skipping core string (no component): ${string_id}"
         fi
     done < <(grep -Hn "new\s\+lang_string\s*(\s*['\"]" "$file" 2>/dev/null)
 }
@@ -233,14 +286,30 @@ scan_php_file_for_strings() {
 scan_mustache_file_for_strings() {
     local file="$1"
     
-    # Pattern: {{#str}} identifier, component {{/str}}
+    # Pattern: {{#str}} identifier, component {{/str}} or {{#str}} identifier {{/str}}
     while IFS=: read -r line_num line_content; do
         if [[ "$line_content" =~ \{\{#str\}\}\s*([-_a-zA-Z0-9]+)\s*,\s*([-_a-zA-Z0-9]+)\s*\{\{/str\}\} ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
+            
+            # Skip core components
+            if is_core_component "$component"; then
+                log_verbose "    Skipping core string: ${component}:${string_id}"
+                continue
+            elif is_other_plugin_component "$component" "$COMPONENT"; then
+                # Track cross-component dependency
+                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                continue
+            fi
+            
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
+        elif [[ "$line_content" =~ \{\{#str\}\}\s*([-_a-zA-Z0-9]+)\s*\{\{/str\}\} ]]; then
+            # {{#str}} with single parameter is a core string - skip it
+            local string_id="${BASH_REMATCH[1]}"
+            log_verbose "    Skipping core string (no component): ${string_id}"
         fi
     done < <(grep -Hn "{{#str}}" "$file" 2>/dev/null)
 }
@@ -254,9 +323,25 @@ scan_javascript_file_for_strings() {
         if [[ "$line_content" =~ M\.util\.get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
+            
+            # Skip core components
+            if is_core_component "$component"; then
+                log_verbose "    Skipping core string: ${component}:${string_id}"
+                continue
+            elif is_other_plugin_component "$component" "$COMPONENT"; then
+                # Track cross-component dependency
+                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                continue
+            fi
+            
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
+        elif [[ "$line_content" =~ M\.util\.get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+            # M.util.get_string with single parameter is a core string - skip it
+            local string_id="${BASH_REMATCH[1]}"
+            log_verbose "    Skipping core string (no component): ${string_id}"
         fi
     done < <(grep -Hn "M\.util\.get_string\s*(" "$file" 2>/dev/null)
     
@@ -265,9 +350,25 @@ scan_javascript_file_for_strings() {
         if [[ "$line_content" =~ getString\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
+            
+            # Skip core components
+            if is_core_component "$component"; then
+                log_verbose "    Skipping core string: ${component}:${string_id}"
+                continue
+            elif is_other_plugin_component "$component" "$COMPONENT"; then
+                # Track cross-component dependency
+                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                continue
+            fi
+            
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
+        elif [[ "$line_content" =~ getString\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+            # getString with single parameter is a core string - skip it
+            local string_id="${BASH_REMATCH[1]}"
+            log_verbose "    Skipping core string (no component): ${string_id}"
         fi
     done < <(grep -Hn "getString\s*(" "$file" 2>/dev/null)
 }
@@ -379,6 +480,28 @@ build_component_string_union() {
     fi
 }
 
+
+# Function to check cross-component dependencies
+check_cross_component_dependencies() {
+    if [[ ${#CROSS_COMPONENT_STRINGS[@]} -eq 0 ]]; then
+        return
+    fi
+    
+    echo ""
+    echo "Cross-Component Dependencies (Warnings)"
+    echo "========================================"
+    echo -e "${YELLOW}WARNING: This plugin uses strings from other plugin components:${NC}"
+    echo ""
+    
+    for key in "${!CROSS_COMPONENT_STRINGS[@]}"; do
+        echo -e "${YELLOW}CROSS-COMPONENT:${NC} $key"
+        echo -e "  Location: ${CROSS_COMPONENT_STRINGS[$key]}"
+    done
+    
+    echo ""
+    echo -e "${YELLOW}Note: These strings must be available from the referenced components.${NC}"
+    echo -e "${YELLOW}Consider whether these dependencies are necessary or if the strings should be defined locally.${NC}"
+}
 
 # Function to check missing strings
 check_missing_strings() {
@@ -513,6 +636,10 @@ display_summary() {
     echo -e "Missing strings (not defined in any language): ${RED}$MISSING_COUNT${NC}"
     echo -e "Total missing translations: ${RED}$MISSING_TRANSLATIONS_COUNT${NC}"
     
+    if [[ ${#CROSS_COMPONENT_STRINGS[@]} -gt 0 ]]; then
+        echo -e "Cross-component dependencies: ${YELLOW}${#CROSS_COMPONENT_STRINGS[@]}${NC}"
+    fi
+    
     [[ $CHECK_UNUSED -eq 1 ]] && echo -e "Possibly unused strings: ${YELLOW}$UNUSED_COUNT${NC}"
 }
 
@@ -574,6 +701,7 @@ main() {
     echo "Debug: Found ${#ALL_DEFINED_STRINGS[@]} strings in total"
     
     # Perform all checks
+    check_cross_component_dependencies
     check_missing_strings
     check_translation_completeness
     check_unused_strings
