@@ -182,14 +182,25 @@ find_available_languages() {
     local component="$1"
     local languages=""
     
-    local plugin_path=$(get_plugin_path_from_component "$component")
-    if [[ -n "$plugin_path" ]]; then
-        for lang_dir in "$MOODLE_PATH/$plugin_path/lang"/*; do
+    # Check if we're in CI environment first
+    if [[ -n "$CI_PROJECT_DIR" ]] && [[ -d "$CI_PROJECT_DIR/lang" ]]; then
+        for lang_dir in "$CI_PROJECT_DIR/lang"/*; do
             if [[ -d "$lang_dir" ]]; then
                 local lang_code=$(basename "$lang_dir")
                 languages="$languages,$lang_code"
             fi
         done
+    else
+        # Standard Moodle installation
+        local plugin_path=$(get_plugin_path_from_component "$component")
+        if [[ -n "$plugin_path" ]]; then
+            for lang_dir in "$MOODLE_PATH/$plugin_path/lang"/*; do
+                if [[ -d "$lang_dir" ]]; then
+                    local lang_code=$(basename "$lang_dir")
+                    languages="$languages,$lang_code"
+                fi
+            done
+        fi
     fi
     
     echo "${languages#,}"  # Remove leading comma
@@ -229,7 +240,7 @@ scan_php_file_for_strings() {
     
     # Pattern 1: get_string('identifier', 'component')
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+        if [[ "$line_content" =~ get_string[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]*[[:space:]]*,[[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]* ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
             
@@ -247,16 +258,16 @@ scan_php_file_for_strings() {
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
-        elif [[ "$line_content" =~ get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+        elif [[ "$line_content" =~ get_string[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             # get_string with single parameter is always a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
             log_verbose "    Skipping core string (no component): ${string_id}"
         fi
-    done < <(grep -Hn "get_string\s*(\s*['\"]" "$file" 2>/dev/null)
+    done < <(grep -Hn "get_string[[:space:]]*(" "$file" 2>/dev/null)
     
     # Pattern 2: new lang_string('identifier', 'component')
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ new\s+lang_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+        if [[ "$line_content" =~ new[[:space:]]+lang_string[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"][[:space:]]*,[[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
             
@@ -274,12 +285,12 @@ scan_php_file_for_strings() {
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
-        elif [[ "$line_content" =~ new\s+lang_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+        elif [[ "$line_content" =~ new[[:space:]]+lang_string[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             # new lang_string with single parameter is a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
             log_verbose "    Skipping core string (no component): ${string_id}"
         fi
-    done < <(grep -Hn "new\s\+lang_string\s*(\s*['\"]" "$file" 2>/dev/null)
+    done < <(grep -Hn "new[[:space:]]\+lang_string[[:space:]]*(" "$file" 2>/dev/null)
 }
 
 # Function to scan Mustache templates
@@ -288,7 +299,7 @@ scan_mustache_file_for_strings() {
     
     # Pattern: {{#str}} identifier, component {{/str}} or {{#str}} identifier {{/str}}
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ \{\{#str\}\}\s*([-_a-zA-Z0-9]+)\s*,\s*([-_a-zA-Z0-9]+)\s*\{\{/str\}\} ]]; then
+        if [[ "$line_content" =~ \{\{#str\}\}[[:space:]]*([-_a-zA-Z0-9]+)[[:space:]]*,[[:space:]]*([-_a-zA-Z0-9]+)[[:space:]]*\{\{/str\}\} ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
             
@@ -306,7 +317,7 @@ scan_mustache_file_for_strings() {
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
-        elif [[ "$line_content" =~ \{\{#str\}\}\s*([-_a-zA-Z0-9]+)\s*\{\{/str\}\} ]]; then
+        elif [[ "$line_content" =~ \{\{#str\}\}[[:space:]]*([-_a-zA-Z0-9]+)[[:space:]]*\{\{/str\}\} ]]; then
             # {{#str}} with single parameter is a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
             log_verbose "    Skipping core string (no component): ${string_id}"
@@ -320,7 +331,7 @@ scan_javascript_file_for_strings() {
     
     # Pattern 1: M.util.get_string('identifier', 'component')
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ M\.util\.get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+        if [[ "$line_content" =~ M\.util\.get_string[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"][[:space:]]*,[[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
             
@@ -338,16 +349,16 @@ scan_javascript_file_for_strings() {
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
-        elif [[ "$line_content" =~ M\.util\.get_string\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+        elif [[ "$line_content" =~ M\.util\.get_string[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             # M.util.get_string with single parameter is a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
             log_verbose "    Skipping core string (no component): ${string_id}"
         fi
-    done < <(grep -Hn "M\.util\.get_string\s*(" "$file" 2>/dev/null)
+    done < <(grep -Hn "M\.util\.get_string[[:space:]]*(" "$file" 2>/dev/null)
     
     # Pattern 2: getString('identifier', 'component')
     while IFS=: read -r line_num line_content; do
-        if [[ "$line_content" =~ getString\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"]\s*,\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+        if [[ "$line_content" =~ getString[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"][[:space:]]*,[[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             local component="${BASH_REMATCH[2]}"
             
@@ -365,12 +376,12 @@ scan_javascript_file_for_strings() {
             USED_STRINGS["${component}:${string_id}"]=1
             STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
             log_verbose "    Found: ${component}:${string_id}"
-        elif [[ "$line_content" =~ getString\s*\(\s*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
+        elif [[ "$line_content" =~ getString[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             # getString with single parameter is a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
             log_verbose "    Skipping core string (no component): ${string_id}"
         fi
-    done < <(grep -Hn "getString\s*(" "$file" 2>/dev/null)
+    done < <(grep -Hn "getString[[:space:]]*(" "$file" 2>/dev/null)
 }
 
 # Function to scan all files in a path
@@ -434,7 +445,7 @@ load_strings_to_union() {
             ((count++))
             log_verbose "    Found string: ${component}:${string_id}"
         fi
-    done < <(grep "^\s*\$string\[['\"]" "$lang_file" 2>/dev/null)
+    done < <(grep "^[[:space:]]*\$string\[['\"]" "$lang_file" 2>/dev/null)
     
     # If no strings found, try without the ^ anchor in case of different formatting
     if [[ $count -eq 0 ]]; then
@@ -459,15 +470,16 @@ load_strings_to_union() {
 build_component_string_union() {
     local component="$1"
     
-    local plugin_path=$(get_plugin_path_from_component "$component")
-    if [[ -n "$plugin_path" ]]; then
-        log_verbose "Looking for language files in: $MOODLE_PATH/$plugin_path/lang"
-        # Check all language directories for this plugin
-        for lang_dir in "$MOODLE_PATH/$plugin_path/lang"/*; do
+    # Check if we're in CI environment first
+    if [[ -n "$CI_PROJECT_DIR" ]] && [[ -d "$CI_PROJECT_DIR/lang" ]]; then
+        log_verbose "Looking for language files in CI project: $CI_PROJECT_DIR/lang"
+        # Check all language directories in the CI project
+        for lang_dir in "$CI_PROJECT_DIR/lang"/*; do
             if [[ -d "$lang_dir" ]]; then
                 local lang_code=$(basename "$lang_dir")
-                # Get the specific language file for this component
-                local lang_file=$(get_language_file_path "$component" "$lang_code")
+                local plugin_type=$(get_plugin_type_from_component "$component")
+                local plugin_name=$(get_plugin_name_from_component "$component")
+                local lang_file="$lang_dir/${plugin_type}_${plugin_name}.php"
                 if [[ -f "$lang_file" ]]; then
                     load_strings_to_union "$lang_file" "$component" "$lang_code"
                 else
@@ -476,7 +488,26 @@ build_component_string_union() {
             fi
         done
     else
-        log_verbose "Could not determine plugin path for component: $component"
+        # Standard Moodle installation
+        local plugin_path=$(get_plugin_path_from_component "$component")
+        if [[ -n "$plugin_path" ]]; then
+            log_verbose "Looking for language files in: $MOODLE_PATH/$plugin_path/lang"
+            # Check all language directories for this plugin
+            for lang_dir in "$MOODLE_PATH/$plugin_path/lang"/*; do
+                if [[ -d "$lang_dir" ]]; then
+                    local lang_code=$(basename "$lang_dir")
+                    # Get the specific language file for this component
+                    local lang_file=$(get_language_file_path "$component" "$lang_code")
+                    if [[ -f "$lang_file" ]]; then
+                        load_strings_to_union "$lang_file" "$component" "$lang_code"
+                    else
+                        log_verbose "Language file not found: $lang_file"
+                    fi
+                fi
+            done
+        else
+            log_verbose "Could not determine plugin path for component: $component"
+        fi
     fi
 }
 
@@ -672,12 +703,20 @@ main() {
     COMPONENT=$(auto_detect_component)
     if [[ -n "$COMPONENT" ]]; then
         echo "Auto-detected component: $COMPONENT"
-        local plugin_path=$(get_plugin_path_from_component "$COMPONENT")
-        if [[ -n "$plugin_path" ]]; then
-            search_paths=("$MOODLE_PATH/$plugin_path")
+        
+        # Check if we're in CI environment with plugin in project directory
+        if [[ -n "$CI_PROJECT_DIR" ]] && [[ -d "$CI_PROJECT_DIR" ]] && [[ -f "$CI_PROJECT_DIR/version.php" ]]; then
+            echo "Running in CI environment - will scan project directory"
+            search_paths=("$CI_PROJECT_DIR")
         else
-            echo -e "${RED}Error: Could not determine plugin path for: $COMPONENT${NC}"
-            exit 2
+            # Standard Moodle installation - look in Moodle directory structure
+            local plugin_path=$(get_plugin_path_from_component "$COMPONENT")
+            if [[ -n "$plugin_path" ]]; then
+                search_paths=("$MOODLE_PATH/$plugin_path")
+            else
+                echo -e "${RED}Error: Could not determine plugin path for: $COMPONENT${NC}"
+                exit 2
+            fi
         fi
     else
         echo -e "${RED}Error: Could not detect component. Please specify a component or run from a plugin directory.${NC}"
