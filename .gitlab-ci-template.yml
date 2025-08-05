@@ -137,7 +137,7 @@ variables:
       run_with_error_handling "moodle-plugin-ci phpunit" "ALLOW_ERRORS_PHPUNIT"
       run_with_error_handling "moodle-plugin-ci phpunit --testsuite tool_dataprivacy_testsuite,tool_policy_testsuite,core_privacy_testsuite" "ALLOW_ERRORS_PRIVACY"
       run_with_error_handling "moodle-plugin-ci behat --suite default --profile chrome" "ALLOW_ERRORS_BEHAT"
-      run_with_error_handling "moodle-plugin-ci behat --auto-rerun=0 --profile chrome admin/tool/xmldb" "ALLOW_ERRORS_XMLDB"
+      run_with_error_handling "moodle-plugin-ci behat --auto-rerun=0 --profile chrome --tags=@tool_xmldb" "ALLOW_ERRORS_XMLDB"
       run_with_error_handling "php admin/cli/check_database_schema.php" "ALLOW_ERRORS_DATABASE_SCHEMA"
   allow_failure: true
   except:
