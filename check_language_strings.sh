@@ -153,13 +153,24 @@ get_component_from_path() {
 
 # Function to auto-detect component from current directory
 auto_detect_component() {
-    if [[ -f "$CI_PROJECT_DIR/version.php" ]]; then
+    # First check CI_PROJECT_DIR if it exists
+    if [[ -n "$CI_PROJECT_DIR" ]] && [[ -f "$CI_PROJECT_DIR/version.php" ]]; then
         local component=$(grep -E "^\s*\\\$plugin->component\s*=\s*['\"]" "$CI_PROJECT_DIR/version.php" | sed -E "s/.*['\"]([^'\"]+)['\"].*/\1/")
         if [[ -n "$component" ]]; then
             echo "$component"
             return
         fi
     fi
+
+    # Otherwise check current directory
+    if [[ -f "./version.php" ]]; then
+        local component=$(grep -E "^\s*\\\$plugin->component\s*=\s*['\"]" "./version.php" | sed -E "s/.*['\"]([^'\"]+)['\"].*/\1/")
+        if [[ -n "$component" ]]; then
+            echo "$component"
+            return
+        fi
+    fi
+
     echo ""
 }
 
@@ -167,13 +178,30 @@ auto_detect_component() {
 get_language_file_path() {
     local component="$1"
     local language="$2"
-    
+
     local plugin_path=$(get_plugin_path_from_component "$component")
     if [[ -n "$plugin_path" ]]; then
-        # For tool plugins, the filename is tool_[name].php
         local plugin_type=$(get_plugin_type_from_component "$component")
         local plugin_name=$(get_plugin_name_from_component "$component")
-        echo "$MOODLE_PATH/$plugin_path/lang/$language/${plugin_type}_${plugin_name}.php"
+
+        # For mod plugins, check both formats: with and without 'mod_' prefix
+        if [[ "$plugin_type" == "mod" ]]; then
+            # First try without mod_ prefix (standard Moodle format)
+            local standard_file="$MOODLE_PATH/$plugin_path/lang/$language/${plugin_name}.php"
+            if [[ -f "$standard_file" ]]; then
+                echo "$standard_file"
+                return
+            fi
+            # Then try with mod_ prefix (alternative format)
+            local alt_file="$MOODLE_PATH/$plugin_path/lang/$language/${plugin_type}_${plugin_name}.php"
+            if [[ -f "$alt_file" ]]; then
+                echo "$alt_file"
+                return
+            fi
+        else
+            # For other plugin types, use the standard format
+            echo "$MOODLE_PATH/$plugin_path/lang/$language/${plugin_type}_${plugin_name}.php"
+        fi
     fi
 }
 
@@ -246,18 +274,18 @@ scan_php_file_for_strings() {
             
             # Skip core components
             if is_core_component "$component"; then
-                log_verbose "    Skipping core string: ${component}:${string_id}"
+                log_verbose "    Skipping core string: ${component}, ${string_id}"
                 continue
             elif is_other_plugin_component "$component" "$COMPONENT"; then
                 # Track cross-component dependency
-                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
-                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                CROSS_COMPONENT_STRINGS["${component}, ${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}, ${string_id}"
                 continue
             fi
             
-            USED_STRINGS["${component}:${string_id}"]=1
-            STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
-            log_verbose "    Found: ${component}:${string_id}"
+            USED_STRINGS["${component}, ${string_id}"]=1
+            STRING_LOCATIONS["${component}, ${string_id}"]="${file}:${line_num}"
+            log_verbose "    Found: ${component}, ${string_id}"
         elif [[ "$line_content" =~ get_string[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             # get_string with single parameter is always a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
@@ -273,18 +301,18 @@ scan_php_file_for_strings() {
             
             # Skip core components
             if is_core_component "$component"; then
-                log_verbose "    Skipping core string: ${component}:${string_id}"
+                log_verbose "    Skipping core string: ${component}, ${string_id}"
                 continue
             elif is_other_plugin_component "$component" "$COMPONENT"; then
                 # Track cross-component dependency
-                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
-                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                CROSS_COMPONENT_STRINGS["${component}, ${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}, ${string_id}"
                 continue
             fi
             
-            USED_STRINGS["${component}:${string_id}"]=1
-            STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
-            log_verbose "    Found: ${component}:${string_id}"
+            USED_STRINGS["${component}, ${string_id}"]=1
+            STRING_LOCATIONS["${component}, ${string_id}"]="${file}:${line_num}"
+            log_verbose "    Found: ${component}, ${string_id}"
         elif [[ "$line_content" =~ new[[:space:]]+lang_string[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             # new lang_string with single parameter is a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
@@ -305,18 +333,18 @@ scan_mustache_file_for_strings() {
             
             # Skip core components
             if is_core_component "$component"; then
-                log_verbose "    Skipping core string: ${component}:${string_id}"
+                log_verbose "    Skipping core string: ${component}, ${string_id}"
                 continue
             elif is_other_plugin_component "$component" "$COMPONENT"; then
                 # Track cross-component dependency
-                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
-                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                CROSS_COMPONENT_STRINGS["${component}, ${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}, ${string_id}"
                 continue
             fi
             
-            USED_STRINGS["${component}:${string_id}"]=1
-            STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
-            log_verbose "    Found: ${component}:${string_id}"
+            USED_STRINGS["${component}, ${string_id}"]=1
+            STRING_LOCATIONS["${component}, ${string_id}"]="${file}:${line_num}"
+            log_verbose "    Found: ${component}, ${string_id}"
         elif [[ "$line_content" =~ \{\{#str\}\}[[:space:]]*([-_a-zA-Z0-9]+)[[:space:]]*\{\{/str\}\} ]]; then
             # {{#str}} with single parameter is a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
@@ -337,18 +365,18 @@ scan_javascript_file_for_strings() {
             
             # Skip core components
             if is_core_component "$component"; then
-                log_verbose "    Skipping core string: ${component}:${string_id}"
+                log_verbose "    Skipping core string: ${component}, ${string_id}"
                 continue
             elif is_other_plugin_component "$component" "$COMPONENT"; then
                 # Track cross-component dependency
-                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
-                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                CROSS_COMPONENT_STRINGS["${component}, ${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}, ${string_id}"
                 continue
             fi
             
-            USED_STRINGS["${component}:${string_id}"]=1
-            STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
-            log_verbose "    Found: ${component}:${string_id}"
+            USED_STRINGS["${component}, ${string_id}"]=1
+            STRING_LOCATIONS["${component}, ${string_id}"]="${file}:${line_num}"
+            log_verbose "    Found: ${component}, ${string_id}"
         elif [[ "$line_content" =~ M\.util\.get_string[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             # M.util.get_string with single parameter is a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
@@ -364,18 +392,18 @@ scan_javascript_file_for_strings() {
             
             # Skip core components
             if is_core_component "$component"; then
-                log_verbose "    Skipping core string: ${component}:${string_id}"
+                log_verbose "    Skipping core string: ${component}, ${string_id}"
                 continue
             elif is_other_plugin_component "$component" "$COMPONENT"; then
                 # Track cross-component dependency
-                CROSS_COMPONENT_STRINGS["${component}:${string_id}"]="${file}:${line_num}"
-                log_verbose "    Cross-component dependency: ${component}:${string_id}"
+                CROSS_COMPONENT_STRINGS["${component}, ${string_id}"]="${file}:${line_num}"
+                log_verbose "    Cross-component dependency: ${component}, ${string_id}"
                 continue
             fi
             
-            USED_STRINGS["${component}:${string_id}"]=1
-            STRING_LOCATIONS["${component}:${string_id}"]="${file}:${line_num}"
-            log_verbose "    Found: ${component}:${string_id}"
+            USED_STRINGS["${component}, ${string_id}"]=1
+            STRING_LOCATIONS["${component}, ${string_id}"]="${file}:${line_num}"
+            log_verbose "    Found: ${component}, ${string_id}"
         elif [[ "$line_content" =~ getString[[:space:]]*\([[:space:]]*[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             # getString with single parameter is a core string - skip it
             local string_id="${BASH_REMATCH[1]}"
@@ -439,11 +467,11 @@ load_strings_to_union() {
         if [[ "$line" =~ \$string\[[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
             local string_id="${BASH_REMATCH[1]}"
             # Add to union of all strings
-            ALL_DEFINED_STRINGS["${component}:${string_id}"]=1
+            ALL_DEFINED_STRINGS["${component}, ${string_id}"]=1
             # Track which language has this string
-            LANGUAGE_STRINGS["${language}:${component}:${string_id}"]=1
+            LANGUAGE_STRINGS["${language}:${component}, ${string_id}"]=1
             ((count++))
-            log_verbose "    Found string: ${component}:${string_id}"
+            log_verbose "    Found string: ${component}, ${string_id}"
         fi
     done < <(grep "^[[:space:]]*\$string\[['\"]" "$lang_file" 2>/dev/null)
     
@@ -454,11 +482,11 @@ load_strings_to_union() {
             if [[ "$line" =~ \$string\[[\'\"]([-_a-zA-Z0-9:]+)[\'\"] ]]; then
                 local string_id="${BASH_REMATCH[1]}"
                 # Add to union of all strings
-                ALL_DEFINED_STRINGS["${component}:${string_id}"]=1
+                ALL_DEFINED_STRINGS["${component}, ${string_id}"]=1
                 # Track which language has this string
-                LANGUAGE_STRINGS["${language}:${component}:${string_id}"]=1
+                LANGUAGE_STRINGS["${language}:${component}, ${string_id}"]=1
                 ((count++))
-                log_verbose "    Found string (alt): ${component}:${string_id}"
+                log_verbose "    Found string (alt): ${component}, ${string_id}"
             fi
         done < <(grep "\$string\[['\"]" "$lang_file" 2>/dev/null)
     fi
@@ -469,7 +497,7 @@ load_strings_to_union() {
 # Function to build union of all strings from all languages for a component
 build_component_string_union() {
     local component="$1"
-    
+
     # Check if we're in CI environment first
     if [[ -n "$CI_PROJECT_DIR" ]] && [[ -d "$CI_PROJECT_DIR/lang" ]]; then
         log_verbose "Looking for language files in CI project: $CI_PROJECT_DIR/lang"
@@ -479,11 +507,82 @@ build_component_string_union() {
                 local lang_code=$(basename "$lang_dir")
                 local plugin_type=$(get_plugin_type_from_component "$component")
                 local plugin_name=$(get_plugin_name_from_component "$component")
-                local lang_file="$lang_dir/${plugin_type}_${plugin_name}.php"
-                if [[ -f "$lang_file" ]]; then
-                    load_strings_to_union "$lang_file" "$component" "$lang_code"
+
+                # For mod plugins, check both formats
+                if [[ "$plugin_type" == "mod" ]]; then
+                    # First try without mod_ prefix (standard Moodle format)
+                    local standard_file="$lang_dir/${plugin_name}.php"
+                    if [[ -f "$standard_file" ]]; then
+                        load_strings_to_union "$standard_file" "$component" "$lang_code"
+                        # Also load with mod_ prefix for compatibility when component doesn't have it
+                        if [[ ! "$component" =~ ^mod_ ]]; then
+                            load_strings_to_union "$standard_file" "mod_${plugin_name}" "$lang_code"
+                        fi
+                    else
+                        # Try with mod_ prefix
+                        local alt_file="$lang_dir/${plugin_type}_${plugin_name}.php"
+                        if [[ -f "$alt_file" ]]; then
+                            load_strings_to_union "$alt_file" "$component" "$lang_code"
+                            # Also load without mod_ prefix for compatibility
+                            if [[ "$component" =~ ^mod_ ]]; then
+                                load_strings_to_union "$alt_file" "${plugin_name}" "$lang_code"
+                            fi
+                        else
+                            log_verbose "Language file not found: $standard_file or $alt_file"
+                        fi
+                    fi
                 else
-                    log_verbose "Language file not found: $lang_file"
+                    # For other plugin types, use standard format
+                    local lang_file="$lang_dir/${plugin_type}_${plugin_name}.php"
+                    if [[ -f "$lang_file" ]]; then
+                        load_strings_to_union "$lang_file" "$component" "$lang_code"
+                    else
+                        log_verbose "Language file not found: $lang_file"
+                    fi
+                fi
+            fi
+        done
+    # Check if we're running from a plugin directory
+    elif [[ -f "./version.php" ]] && [[ -d "./lang" ]]; then
+        log_verbose "Looking for language files in current directory: ./lang"
+        # Check all language directories in the current directory
+        for lang_dir in ./lang/*; do
+            if [[ -d "$lang_dir" ]]; then
+                local lang_code=$(basename "$lang_dir")
+                local plugin_type=$(get_plugin_type_from_component "$component")
+                local plugin_name=$(get_plugin_name_from_component "$component")
+
+                # For mod plugins, check both formats
+                if [[ "$plugin_type" == "mod" ]]; then
+                    # First try without mod_ prefix (standard Moodle format)
+                    local standard_file="$lang_dir/${plugin_name}.php"
+                    if [[ -f "$standard_file" ]]; then
+                        load_strings_to_union "$standard_file" "$component" "$lang_code"
+                        # Also load with mod_ prefix for compatibility when component doesn't have it
+                        if [[ ! "$component" =~ ^mod_ ]]; then
+                            load_strings_to_union "$standard_file" "mod_${plugin_name}" "$lang_code"
+                        fi
+                    else
+                        # Try with mod_ prefix
+                        local alt_file="$lang_dir/${plugin_type}_${plugin_name}.php"
+                        if [[ -f "$alt_file" ]]; then
+                            load_strings_to_union "$alt_file" "$component" "$lang_code"
+                            # Also load without mod_ prefix for compatibility
+                            if [[ "$component" =~ ^mod_ ]]; then
+                                load_strings_to_union "$alt_file" "${plugin_name}" "$lang_code"
+                            fi
+                        else
+                            log_verbose "Language file not found: $standard_file or $alt_file"
+                        fi
+                    fi
+                else
+                    # For other plugin types, use standard format
+                    local lang_file="$lang_dir/${plugin_type}_${plugin_name}.php"
+                    if [[ -f "$lang_file" ]]; then
+                        load_strings_to_union "$lang_file" "$component" "$lang_code"
+                    else
+                        log_verbose "Language file not found: $lang_file"
+                    fi
                 fi
             fi
         done
@@ -500,6 +599,18 @@ build_component_string_union() {
                     local lang_file=$(get_language_file_path "$component" "$lang_code")
                     if [[ -f "$lang_file" ]]; then
                         load_strings_to_union "$lang_file" "$component" "$lang_code"
+                        # For mod plugins, also load with alternative component name for compatibility
+                        local plugin_type=$(get_plugin_type_from_component "$component")
+                        if [[ "$plugin_type" == "mod" ]]; then
+                            local plugin_name=$(get_plugin_name_from_component "$component")
+                            # If component doesn't have mod_ prefix, also load with it
+                            if [[ ! "$component" =~ ^mod_ ]]; then
+                                load_strings_to_union "$lang_file" "mod_${plugin_name}" "$lang_code"
+                            # If component has mod_ prefix, also load without it
+                            elif [[ "$component" =~ ^mod_ ]]; then
+                                load_strings_to_union "$lang_file" "${plugin_name}" "$lang_code"
+                            fi
+                        fi
                     else
                         log_verbose "Language file not found: $lang_file"
                     fi
@@ -708,6 +819,10 @@ main() {
         if [[ -n "$CI_PROJECT_DIR" ]] && [[ -d "$CI_PROJECT_DIR" ]] && [[ -f "$CI_PROJECT_DIR/version.php" ]]; then
             echo "Running in CI environment - will scan project directory"
             search_paths=("$CI_PROJECT_DIR")
+        # Check if we're running from a plugin directory (has version.php in current dir)
+        elif [[ -f "./version.php" ]]; then
+            echo "Running from plugin directory - will scan current directory"
+            search_paths=(".")
         else
             # Standard Moodle installation - look in Moodle directory structure
             local plugin_path=$(get_plugin_path_from_component "$COMPONENT")
