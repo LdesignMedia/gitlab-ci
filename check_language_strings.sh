@@ -102,7 +102,13 @@ validate_moodle_installation() {
         echo -e "${RED}Error: Moodle directory not found: $MOODLE_PATH${NC}"
         exit 2
     fi
-    
+
+    # Support Moodle 5.0+ where version.php moved to public/
+    if [[ ! -f "$MOODLE_PATH/version.php" ]] && [[ -f "$MOODLE_PATH/public/version.php" ]]; then
+        echo "Detected Moodle 5.0+ directory structure, using public/ subdirectory."
+        MOODLE_PATH="$MOODLE_PATH/public"
+    fi
+
     if [[ ! -f "$MOODLE_PATH/version.php" ]]; then
         echo -e "${RED}Error: Not a valid Moodle installation: $MOODLE_PATH${NC}"
         exit 2
