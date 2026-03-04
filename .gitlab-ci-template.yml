@@ -13,6 +13,7 @@ variables:
   LANGUAGE_CHECK_SCRIPT_URL: "https://raw.githubusercontent.com/LdesignMedia/gitlab-ci/refs/heads/main/check_language_strings.sh"
 
   # Workplace branches
+  MOODLE_BRANCH_WORKPLACE501S: WORKPLACE_501_0
   MOODLE_BRANCH_WORKPLACE500S: WORKPLACE_500_0
   MOODLE_BRANCH_WORKPLACE405S: WORKPLACE_405_0
   MOODLE_BRANCH_WORKPLACE404S: WORKPLACE_404_3
